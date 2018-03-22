@@ -3,9 +3,7 @@
 #include <math.h>
 #include <time.h>
 
-#define DEBUG_not
 #define FRAME_SIZE 44100
-#define THRESHOLD 610000
 #define DURATION_SECONDS 45
 
 #include <fcntl.h>  /* File Control Definitions          */
@@ -14,6 +12,13 @@
 #include <errno.h>  /* ERROR Number Definitions          */
 #include <sys/ioctl.h> //ioctl() call defenitions
 #include <unistd.h>
+
+struct rms_struct {
+	short max;
+	short min;
+	short crossed;
+	double rms;
+};
 
 void turn_on(int seconds) {
 	int fd;
@@ -28,35 +33,52 @@ void turn_on(int seconds) {
 	close(fd);
 }
 
-int * read_frame(int * frame) {
+short * read_frame(short * frame) {
+
+	fread(frame, 2, FRAME_SIZE, stdin);
+
+	/*
 	int pos = 0;
 	while( pos < FRAME_SIZE ) {
-		char a = getc(stdin);
-		char b = getc(stdin);
 
-		frame[ pos ] = (a << 8) | b;
+		printf("%d, pos:%d\n", frame[pos], pos);
 
 		pos += 1;
 	}
+	*/
 
 	return frame;
 }
 
-float calc_rms(int * samples, int size) {
+struct rms_struct calc_rms(short * samples, int size) {
 
-	float rms = 0;
+	struct rms_struct rval;
+
+	rval.rms = 0;
+	rval.max = 0;
+	rval.min = 0;
+	rval.crossed = 0;
 	for(int i=0; i<size; i++) {
-		rms += samples[i] * samples[i];
+		rval.rms += samples[i] * samples[i];
+
+		if (rval.max<samples[i]) rval.max = samples[i];
+		if (rval.min>samples[i]) rval.min = samples[i];
+		if (i>0 && samples[i-1]*samples[i]<0) rval.crossed++;
 	}
-	
-	return sqrt(rms);	
+	/*
+	printf("(max, min, zero-crosses) = (%d, %d, %d)\n", 
+			rval.max, rval.min, rval.crossed);
+			*/
+
+	rval.rms = sqrt(rval.rms);
+	return rval;
 }
 
 int main(void) {
 
 	printf( "Expecting 44kHz signed 16bit little endian (S16).\n" );
 
-	int * frame = malloc( FRAME_SIZE * sizeof(int));
+	short * frame = malloc( FRAME_SIZE * sizeof(short));
 	if (!frame) {
 		fprintf(stderr, "No memory\n");
 		exit(1);
@@ -66,24 +88,25 @@ int main(void) {
 	time_t started;
        	time(&started);
 	while( 1 ) {
-		int * samples_frame = read_frame(frame);
-		double rms = calc_rms( samples_frame, FRAME_SIZE );
+		short * samples_frame = read_frame(frame);
+		struct rms_struct rs = calc_rms( samples_frame, FRAME_SIZE );
 
-		if (rms>10000) printf("%f\n", rms);
+		if (rs.max > 1900 && rs.crossed > 500) {
+			printf("(max, min, zero-crosses) = (%d, %d, %d, %f)\n", 
+					rs.max, rs.min, rs.crossed, rs.rms);
 
-		
-		if (rms > THRESHOLD) {
 			time_t now;
 		       	time(&now);
 			struct tm tm = *localtime(&now);
 
+			int duration = DURATION_SECONDS;
 			if (tm.tm_hour > 8 && tm.tm_hour < 18) {
-				printf("During daylight, this is skipped\n");
-				continue;
+				printf("During daylight, just blink\n");
+				duration = 1;
 			}
 
-			turn_on( DURATION_SECONDS );
-			total_time_on += DURATION_SECONDS;
+			turn_on( duration );
+			total_time_on += duration;
 
 			int total_hours = total_time_on / 60 / 60;
 			int total_minutes = total_time_on - total_hours*3600;
