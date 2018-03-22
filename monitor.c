@@ -91,7 +91,12 @@ int main(void) {
 		short * samples_frame = read_frame(frame);
 		struct rms_struct rs = calc_rms( samples_frame, FRAME_SIZE );
 
-		if (rs.max > 1900 && rs.crossed > 500) {
+		/* 
+		 * printf("(max, min, zero-crosses) = (%d, %d, %d, %f)\n", 
+				rs.max, rs.min, rs.crossed, rs.rms);
+				*/
+
+		if (rs.max > 900 && rs.crossed > 400) {
 			printf("(max, min, zero-crosses) = (%d, %d, %d, %f)\n", 
 					rs.max, rs.min, rs.crossed, rs.rms);
 
@@ -111,14 +116,13 @@ int main(void) {
 			int total_hours = total_time_on / 60 / 60;
 			int total_minutes = total_time_on - total_hours*3600;
 			total_minutes = total_minutes / 60;
-			printf("Total time on : %02d:%02d\n",
-					total_hours, total_minutes);
 			time_t diff = difftime(now, started );
-			printf("Total time : %ld seconds (of which %d seconds on)\n",
-				       	diff, total_time_on);
-
 			float per = (float) total_time_on / diff;
-			printf("Percentage on : %f\n", per);
+			printf("%02d:%02d (=%dseconds) of total %d seconds (%f%%)\n",
+					total_hours, total_minutes,
+					(int) diff,
+					total_time_on,
+					per);
 
 		}
 	}
