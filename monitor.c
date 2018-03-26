@@ -74,6 +74,19 @@ struct rms_struct calc_rms(short * samples, int size) {
 	return rval;
 }
 
+void print_current_time()
+{
+	time_t timer;
+	char buffer[26];
+	struct tm* tm_info;
+
+	time(&timer);
+	tm_info = localtime(&timer);
+
+	strftime(buffer, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+	puts(buffer);
+}
+
 int main(void) {
 
 	printf( "Expecting 44kHz signed 16bit little endian (S16).\n" );
@@ -91,6 +104,11 @@ int main(void) {
 		short * samples_frame = read_frame(frame);
 		struct rms_struct rs = calc_rms( samples_frame, FRAME_SIZE );
 
+		if (rs.max > 0) {
+			print_current_time();
+			printf("(max, min, zero-crosses) = (%d, %d, %d, %f)\n", 
+					rs.max, rs.min, rs.crossed, rs.rms);
+		}
 		/*
 		 printf("(max, min, zero-crosses) = (%d, %d, %d, %f)\n", 
 				rs.max, rs.min, rs.crossed, rs.rms);
@@ -112,10 +130,17 @@ int main(void) {
 
 			turn_on( duration );
 			total_time_on += duration;
+			/*
+			 * removed as it causes the light not to turn on for far too
+			 * long
+			 *
+			 * Instead, add -B 0 to arecord so as not to buffer
+			 * audio data at all
 			while( duration ) {
 				short * samples_frame = read_frame(frame);
 				duration--;
 			}
+			*/
 
 			int total_hours = total_time_on / 60 / 60;
 			int total_minutes = (total_time_on - total_hours*3600)/60;
